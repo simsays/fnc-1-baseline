@@ -1,5 +1,6 @@
 # Baseline FNC implementation
 
+Testing Simon
 Information about the fake news challenge can be found on [FakeChallenge.org](http://fakenewschallenge.org).
 
 This repository contains code that reads the dataset, extracts some simple features, trains a cross-validated model and
