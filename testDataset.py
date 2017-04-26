@@ -11,9 +11,8 @@ def main():
 	print
 	print
 	print
-	print dataset.stances[5]
-	print type(dataset.stances[5])
-	print dataset.articles[154]
+	for i in range(10,20):
+		print dataset.stances[i]
 
 if __name__ == '__main__':
     main()
