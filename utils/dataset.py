@@ -28,7 +28,7 @@ class DataSet():
 
     def read(self,filename):
         rows = []
-        with open(self.path + "/" + filename, "r", encoding='utf-8') as table:
+        with open(self.path + "/" + filename, "r") as table:
             r = DictReader(table)
 
             for line in r:
