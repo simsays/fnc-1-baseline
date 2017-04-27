@@ -13,21 +13,24 @@ from keras.utils import to_categorical
 # Preprocessed data loading
 outfile = 'preProcessed.npz'
 npzfile = np.load(outfile)
-x_train = npzfile['x_train']
+headline_train = npzfile['headline_train']
+headline_val = npzfile['headline_val']
+article_train = npzfile['article_train']
+article_val = npzfile['article_val']
 y_train = npzfile['y_train']
-x_val = npzfile['x_val']
 y_val = npzfile['y_val']
-word_index = npzfile['word_index'].item()
-embedding_matrix = npzfile['embedding_matrix']
-EMBEDDING_DIM = int(npzfile['embedding_dim'])
+
+
+headline_word_index = npzfile['headline_word_index'].item()
+article_word_index = npzfile['artilce_word_index'].item()
+headline_embedding_matrix = npzfile['headline_embedding_matrix']
+article_embedding_matrix = npzfile['article_embedding_matrix']
+
+HEADLINE_EMBEDDING_DIM = int(npzfile['headline_embedding_dim'])
+ARTICLE_EMBEDDING_DIM = int(npzfile['article_embedding_dim'])
 MAX_SEQUENCE_LENGTH = int(npzfile['max_seq'])
 
-# Pre-training embedding layer
-embedding_layer = Embedding(len(word_index.keys()) + 1,
-                            EMBEDDING_DIM,
-                            weights=[embedding_matrix],
-                            trainable=False,
-                            input_length=MAX_SEQUENCE_LENGTH)
+
 
 
 # Conv layer params
@@ -35,11 +38,18 @@ CNN_FILTER_1 = 80
 CNN_FILTER_2 = 40
 KERNEL_SIZE = 3
 
+article_input = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32', name='article_input')
+# Pre-training embedding layer
+article_embedding_layer = Embedding(len(word_index.keys()) + 1,
+                            ARTICLE_EMBEDDING_DIM,
+                            weights=[article_embedding_matrix],
+                            trainable=False,
+                            input_length=MAX_SEQUENCE_LENGTH)
+
 # Net structure
 model = Sequential()
 model.add(embedding_layer)
 model.add(Conv1D(CNN_FILTER_1, KERNEL_SIZE, activation='relu'))
-#model.add(Conv1D(CNN_FILTER_2, KERNEL_SIZE, activation='relu'))
 model.add(Flatten())
 
 '''
