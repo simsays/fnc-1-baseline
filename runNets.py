@@ -1,6 +1,7 @@
-import numpy as np
 
-# LSTM for sequence classification in the IMDB dataset
+###########################################
+# Imports
+import numpy as np
 from keras.models import Sequential, Model
 from keras.layers import Dense, Input, Merge
 from keras.layers import LSTM
@@ -9,7 +10,10 @@ from keras.layers import Conv1D, MaxPooling1D
 from keras.layers.embeddings import Embedding
 from keras.preprocessing import sequence
 from keras.utils import to_categorical
+from keras.optimizers import SGD
 
+
+#########################################
 # Preprocessed data loading
 outfile = 'preProcessed.npz'
 npzfile = np.load(outfile)
@@ -19,27 +23,23 @@ article_train = npzfile['article_train']
 article_val = npzfile['article_val']
 y_train = npzfile['y_train']
 y_val = npzfile['y_val']
-
-
 headline_word_index = npzfile['headline_word_index'].item()
 article_word_index = npzfile['article_word_index'].item()
 headline_embedding_matrix = npzfile['headline_embedding_matrix']
 article_embedding_matrix = npzfile['article_embedding_matrix']
-
 HEADLINE_EMBEDDING_DIM = int(npzfile['headline_embedding_dim'])
 ARTICLE_EMBEDDING_DIM = int(npzfile['article_embedding_dim'])
 MAX_SEQUENCE_LENGTH = int(npzfile['max_seq'])
 
 
+#######################################
+# Neural Network structure
+#######################################
 
 
-# Conv layer params
-CNN_FILTER_1 = 200
-CNN_FILTER_2 = 80
-CNN_FILTER_3 = 50
-KERNEL_SIZE = 3
+#######################################
+# Article Branch
 
-# LEFT PIPE
 # Pre-training embedding layer
 article_branch = Sequential()
 article_input = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32', name='article_input')
@@ -50,15 +50,20 @@ article_embedding_layer = Embedding(len(article_word_index.keys()) + 1,
                             input_length=MAX_SEQUENCE_LENGTH)
 article_branch.add(article_embedding_layer)
 
+# Conv layer params
+CNN_FILTER_1 = 200
+CNN_FILTER_2 = 80
+CNN_FILTER_3 = 50
+KERNEL_SIZE = 3
+
+# CNN
 conv1 = Conv1D(CNN_FILTER_1, KERNEL_SIZE, activation='relu', padding = 'same')
 article_branch.add(conv1)
-
 
 conv2 = Conv1D(CNN_FILTER_2, KERNEL_SIZE, activation='relu', padding = 'same')
 article_branch.add(conv2)
 
-
-dropout = Dropout(.15)
+dropout = Dropout(.1) # Dropout layer
 article_branch.add(dropout)
 
 conv3 = Conv1D(CNN_FILTER_3, KERNEL_SIZE, activation='relu', padding = 'same')
@@ -67,7 +72,9 @@ article_branch.add(conv3)
 print(article_branch.summary())
 
 
-# RIGHT PIPE
+#########################################
+# Headline Branch
+
 headline_branch = Sequential()
 headline_input = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32', name='headline_input')
 headline_embedding_layer = Embedding(len(headline_word_index.keys()) + 1,
@@ -80,22 +87,30 @@ headline_branch.add(headline_embedding_layer)
 print(headline_branch.summary())
 
 
-# MERGE PIPES
+########################################
+# Merged Branch
 model = Sequential()
-model.add(Merge([article_branch, headline_branch], mode = 'mul'))
+model.add(Merge([article_branch, headline_branch], mode = 'ave'))
 
-# CENTER PIPE
-lstm = LSTM(20, activation='linear')
+# LSTM
+lstm = LSTM(20, activation='sigmoid')
 model.add(lstm)
 
+# Output Softmax Layer
 output = Dense(4, activation='softmax')
 model.add(output)
 
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+# Optimizer
+sgd = SGD(lr=0.3, momentum=0.8, decay=0, nesterov=False)
+
+# Model compilation and training
+model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
 print(model.summary())
 print('Training model.')
-model.fit([article_train, headline_train], y_train, epochs=3, batch_size=64)
+model.fit([article_train, headline_train], y_train, epochs=30, batch_size=128)
 
+
+######################################
 # Final evaluation of the model
 scores = model.evaluate([article_val, headline_val], y_val, verbose=0)
 print("Accuracy: %.2f%%" % (scores[1]*100))
