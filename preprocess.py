@@ -1,19 +1,18 @@
 # Imports for tokenizing/word2vec stuff
+import os
+import numpy as np
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
-import os
-
-import numpy as np
-
 from utils.dataset import DataSet
 
 # 10% cross-validation
 VALIDATION_SPLIT = 0.1
 BASE_DIR = os.getcwd()
 GLOVE_DIR = BASE_DIR + '/glove.6B/'
-EMBEDDING_DIM = 300
-
+EMBEDDING_DIM = 50 #50/100/200/300
+MAX_NB_WORDS = 200
+MAX_SEQUENCE_LENGTH = 1000
 dataset = DataSet()
 
 # texts contains the headline pre-appended to each article.
@@ -27,20 +26,19 @@ stanceDict = {'agree': 0, 'disagree': 1, 'unrelated': 2, 'discuss': 3}
 for stance in dataset.stances:
 	# Put outputs into labels
 	labels.append(stanceDict[stance['Stance']])
-	
 	texts.append(stance['Headline'] + " " + dataset.articles[stance['Body ID']])
 
 
 
-tokenizer = Tokenizer()
+tokenizer = Tokenizer(num_words=MAX_NB_WORDS)
 tokenizer.fit_on_texts(texts)
 sequences = tokenizer.texts_to_sequences(texts)
 
 word_index = tokenizer.word_index
 print('Found %s unique tokens.' %len(word_index))
 
-data = pad_sequences(sequences)
-	
+data = pad_sequences(sequences, maxlen=MAX_SEQUENCE_LENGTH)
+
 labels = to_categorical(np.asarray(labels))
 print('Shape of data tensor:', data.shape)
 print('Shape of label tensor:', labels.shape)
@@ -58,7 +56,7 @@ x_val = data[-nb_validation_samples:]
 y_val = labels[-nb_validation_samples:]
 
 embeddings_index = {}
-f = open(os.path.join(GLOVE_DIR, 'glove.6B.300d.txt'))
+f = open(os.path.join(GLOVE_DIR, 'glove.6B.'+str(EMBEDDING_DIM)+'d.txt'))
 for line in f:
     values = line.split()
     word = values[0]
@@ -81,5 +79,4 @@ for word, i in word_index.items():
 outfile = "preProcessed.npz"
 np.savez(outfile, x_train=x_train, y_train=y_train,\
  x_val=x_val, y_val=y_val, embedding_matrix=embedding_matrix,\
- word_index=word_index)
-
+ word_index=word_index, embedding_dim=EMBEDDING_DIM, max_seq=MAX_SEQUENCE_LENGTH)
