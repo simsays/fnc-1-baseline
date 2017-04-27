@@ -1,4 +1,5 @@
-# Imports for tokenizing/word2vec stuff
+########################################
+# Imports for tokenizing
 import os
 import numpy as np
 from keras.preprocessing.text import Tokenizer
@@ -6,77 +7,125 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
 from utils.dataset import DataSet
 
-# 10% cross-validation
-VALIDATION_SPLIT = 0.1
+#######################################
+# Constants
+VALIDATION_SPLIT = 0.1 # 10% validation
 BASE_DIR = os.getcwd()
 GLOVE_DIR = BASE_DIR + '/glove.6B/'
-EMBEDDING_DIM = 50 #50/100/200/300
+HEADLINE_EMBEDDING_DIM = 50 #50/100/200/300
+ARTICLE_EMBEDDING_DIM = 300 #50/100/200/300
 MAX_NB_WORDS = 200
 MAX_SEQUENCE_LENGTH = 1000
 dataset = DataSet()
 
-# texts contains the headline pre-appended to each article.
-texts = []
-labels = []
+
+####################################
+# putting data into lists
+headlines = []
+articles = []
+stances = []
 
 # The 4 stances are 'agree', 'disagree', 'unrelated', and 'discuss'
-
 stanceDict = {'agree': 0, 'disagree': 1, 'unrelated': 2, 'discuss': 3}
 
 for stance in dataset.stances:
-	# Put outputs into labels
-	labels.append(stanceDict[stance['Stance']])
-	texts.append(stance['Headline'] + " " + dataset.articles[stance['Body ID']])
+# Put outputs into stances
+    stances.append(stanceDict[stance['Stance']])
+    headlines.append(stance['Headline'])
+    articles.append(dataset.articles[stance['Body ID']])
 
 
+#####################################
+# tokenization
+headline_tokenizer = Tokenizer(num_words=MAX_NB_WORDS)
+headline_tokenizer.fit_on_texts(headlines)
+headline_sequences = headline_tokenizer.texts_to_sequences(headlines)
 
-tokenizer = Tokenizer(num_words=MAX_NB_WORDS)
-tokenizer.fit_on_texts(texts)
-sequences = tokenizer.texts_to_sequences(texts)
+article_tokenizer = Tokenizer(num_words=MAX_NB_WORDS)
+article_tokenizer.fit_on_texts(articles)
+article_sequences = article_tokenizer.texts_to_sequences(articles)
 
-word_index = tokenizer.word_index
-print('Found %s unique tokens.' %len(word_index))
+headline_word_index = headline_tokenizer.word_index
+article_word_index = article_tokenizer.word_index
+print('Found %s unique headline tokens.' %len(headline_word_index))
+print('Found %s unique article tokens.' %len(article_word_index))
 
-data = pad_sequences(sequences, maxlen=MAX_SEQUENCE_LENGTH)
 
-labels = to_categorical(np.asarray(labels))
-print('Shape of data tensor:', data.shape)
-print('Shape of label tensor:', labels.shape)
+####################################
+# spliting data into vectors
+headline_data = pad_sequences(headline_sequences, maxlen=MAX_SEQUENCE_LENGTH)
+article_data = pad_sequences(article_sequences, maxlen=MAX_SEQUENCE_LENGTH)
+stances = to_categorical(np.asarray(stances))
+print('Shape of headline data tensor:', headline_data.shape)
+print('Shape of article data tensor:', article_data.shape)
+print('Shape of stance tensor:', stances.shape)
 
-# split the data into a training set and a validation set
-indices = np.arange(data.shape[0])
+# split the data into a training set and a validation set and shuffle it
+indices = np.arange(headline_data.shape[0])
 np.random.shuffle(indices)
-data = data[indices]
-labels = labels[indices]
-nb_validation_samples = int(VALIDATION_SPLIT * data.shape[0])
+headline_data = headline_data[indices]
+article_data = article_data[indices]
 
-x_train = data[:-nb_validation_samples]
-y_train = labels[:-nb_validation_samples]
-x_val = data[-nb_validation_samples:]
-y_val = labels[-nb_validation_samples:]
+stances = stances[indices]
+nb_validation_samples = int(VALIDATION_SPLIT * headline_data.shape[0])
 
-embeddings_index = {}
-f = open(os.path.join(GLOVE_DIR, 'glove.6B.'+str(EMBEDDING_DIM)+'d.txt'))
+headline_train = headline_data[:-nb_validation_samples]
+headline_val = headline_data[-nb_validation_samples:]
+article_train = article_data[:-nb_validation_samples]
+article_val = article_data[-nb_validation_samples:]
+y_train = stances[:-nb_validation_samples]
+y_val = stances[-nb_validation_samples:]
+
+
+#####################################
+# making the embedding matrices
+
+# headlines
+headline_embeddings_index = {}
+f = open(os.path.join(GLOVE_DIR, 'glove.6B.'+str(HEADLINE_EMBEDDING_DIM)+'d.txt'))
 for line in f:
     values = line.split()
     word = values[0]
     coefs = np.asarray(values[1:], dtype='float32')
-    embeddings_index[word] = coefs
+    headline_embeddings_index[word] = coefs
 f.close()
 
-print('Found %s word vectors.' % len(embeddings_index))
+print('Found %s headline word vectors.' % len(headline_embeddings_index))
 
-# END OF PREPROCESSING
-
-embedding_matrix = np.zeros((len(word_index) + 1, EMBEDDING_DIM))
-for word, i in word_index.items():
-    embedding_vector = embeddings_index.get(word)
-    if embedding_vector is not None:
+headline_embedding_matrix = np.zeros((len(headline_word_index) + 1, HEADLINE_EMBEDDING_DIM))
+for word, i in headline_word_index.items():
+    headline_embedding_vector = headline_embeddings_index.get(word)
+    if headline_embedding_vector is not None:
         # words not found in embedding index will be all-zeros.
-        embedding_matrix[i] = embedding_vector
+        headline_embedding_matrix[i] = headline_embedding_vector
+
+# articles
+article_embeddings_index = {}
+f = open(os.path.join(GLOVE_DIR, 'glove.6B.'+str(ARTICLE_EMBEDDING_DIM)+'d.txt'))
+for line in f:
+    values = line.split()
+    word = values[0]
+    coefs = np.asarray(values[1:], dtype='float32')
+    article_embeddings_index[word] = coefs
+f.close()
+
+print('Found %s article word vectors.' % len(article_embeddings_index))
+
+article_embedding_matrix = np.zeros((len(article_word_index) + 1, ARTICLE_EMBEDDING_DIM))
+for word, i in article_word_index.items():
+    article_embedding_vector = article_embeddings_index.get(word)
+    if article_embedding_vector is not None:
+        # words not found in embedding index will be all-zeros.
+        article_embedding_matrix[i] = article_embedding_vector
 
 
+#########################################
+# save outputs to file
 outfile = "preProcessed.npz"
-np.savez(outfile, x_train=x_train, y_train=y_train,\
- x_val=x_val, y_val=y_val, embedding_matrix=embedding_matrix,\
- word_index=word_index, embedding_dim=EMBEDDING_DIM, max_seq=MAX_SEQUENCE_LENGTH)
+np.savez(outfile, \
+ headline_train=headline_train, article_train=article_train, y_train=y_train,\
+ headline_val=headline_val, article_val=article_val, y_val=y_val, \
+ headline_embedding_matrix=headline_embedding_matrix, article_embedding_matrix=article_embedding_matrix,\
+ headline_word_index=headline_word_index, article_word_index=article_word_index,\
+ headline_embedding_dim=HEADLINE_EMBEDDING_DIM,article_embedding_dim=ARTICLE_EMBEDDING_DIM,\
+ max_seq=MAX_SEQUENCE_LENGTH)
